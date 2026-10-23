@@ -61,11 +61,34 @@ Browser and tab-limit choices are saved in
 `$XDG_STATE_HOME`). Startup and extraction errors are logged to `diagnostics.log`
 in the same directory.
 
+## Releases
+
+The current version is **0.4.0 Alpha 1** (`v0.4.0-alpha.1`), marked as a GitHub
+prerelease. Installers are published on the
+[Releases page](https://github.com/justinecabel/fitgirl-ff-link-extractor/releases).
+The alpha is intended for testing and feedback.
+
+The **Publish release** workflow builds both installers, runs the Linux checks,
+attaches the `.deb`, Windows `.exe`, and `SHA256SUMS`, then publishes the release.
+Alpha, beta, and release-candidate tags are marked **Pre-release** and do not
+replace the latest stable release. Assets are uploaded to a draft before it
+is published.
+
+To publish another alpha, set `VERSION` to `0.4.0-alpha.2`, commit, and push to
+`main`. A version-changing push starts the release workflow and creates its
+matching tag. You can also run **Actions → Publish release → Run workflow**,
+or push an explicit matching `v*` tag. Release tags must match `VERSION`.
+Published tags and assets are left unchanged when a workflow is rerun.
+
+Debian packages use `0.4.0~alpha.1` internally so an eventual stable `0.4.0`
+upgrades correctly. The build script converts supported `-alpha`, `-beta`, and
+`-rc` version suffixes automatically.
+
 ## Ubuntu installer (.deb)
 
 The **Build Ubuntu DEB** GitHub Actions workflow builds an `amd64` / x86-64
-installer on Ubuntu 22.04. It runs on pushes to `main`, pull requests, `v*` tags,
-and manually through **Actions → Build Ubuntu DEB → Run workflow**.
+installer on Ubuntu 22.04. It runs on pushes to `main`, pull requests, as part
+of a release, and manually through **Actions → Build Ubuntu DEB → Run workflow**.
 
 After a successful run, download and unzip the
 **FitGirl-FF-Link-Extractor-Ubuntu-amd64** artifact, then install its `.deb`:
@@ -120,7 +143,7 @@ direct downloads, and closing the entire browser including its information tab. 
 ## Running from source
 
 ```bash
-git clone https://github.com/zouhirdev/fitgirl-ff-link-extractor.git
+git clone https://github.com/justinecabel/fitgirl-ff-link-extractor.git
 cd fitgirl-ff-link-extractor
 ```
 

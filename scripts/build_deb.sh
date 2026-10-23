@@ -6,6 +6,7 @@ PROJECT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
 cd -- "$PROJECT_DIR"
 build_python="${FF_BUILD_PYTHON:-python3}"
 version="${1:-$(cat VERSION)}"
+version="$("$build_python" scripts/release_info.py "$version" --debian)"
 package_name="fitgirl-ff-link-extractor"
 
 dpkg --validate-version "$version"
@@ -50,7 +51,7 @@ Architecture: $architecture
 Maintainer: FitGirl FF Link Extractor contributors <noreply@github.com>
 Installed-Size: $installed_size
 Depends: libc6 (>= $glibc_version), libfontconfig1, libx11-6, libxext6, libxft2, libxrender1
-Homepage: https://github.com/zouhirdev/fitgirl-ff-link-extractor
+Homepage: https://github.com/justinecabel/fitgirl-ff-link-extractor
 Description: Desktop tool for extracting direct download links
  Select files from FitGirl pages and resolve FuckingFast download URLs.
  Includes Python, Tkinter, and Python dependencies. Uses an installed Chrome,

@@ -1,0 +1,122 @@
+name: Publish release
+
+on:
+  push:
+    branches: [main]
+    paths: [VERSION]
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: publish-release
+  cancel-in-progress: false
+
+jobs:
+  prepare:
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: write
+    outputs:
+      tag: ${{ steps.info.outputs.tag }}
+      version: ${{ steps.info.outputs.version }}
+      title: ${{ steps.info.outputs.title }}
+      prerelease: ${{ steps.info.outputs.prerelease }}
+      publish: ${{ steps.tag.outputs.publish }}
+    steps:
+      - uses: actions/checkout@v7
+      - name: Validate version and release tag
+        id: info
+        run: |
+          if [[ "$GITHUB_REF" == refs/tags/* ]]; then
+            tag="$GITHUB_REF_NAME"
+          else
+            tag="v$(cat VERSION)"
+          fi
+          python3 scripts/release_info.py "$tag" --check-version VERSION >> "$GITHUB_OUTPUT"
+      - name: Ensure tag points to this commit
+        id: tag
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ steps.info.outputs.tag }}
+        run: |
+          if gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$RELEASE_TAG" --silent 2>/dev/null; then
+            tagged_commit="$(gh api "repos/$GITHUB_REPOSITORY/commits/$RELEASE_TAG" --jq .sha)"
+            if [[ "$tagged_commit" != "$GITHUB_SHA" ]]; then
+              echo 'The release tag already points to a different commit.' >&2
+              exit 1
+            fi
+          else
+            gh api --method POST "repos/$GITHUB_REPOSITORY/git/refs" \
+              -f ref="refs/tags/$RELEASE_TAG" -f sha="$GITHUB_SHA" --silent
+          fi
+          if state="$(gh release view "$RELEASE_TAG" --json isDraft --jq .isDraft 2>/dev/null)" && [[ "$state" == false ]]; then
+            echo 'This release is already published; leaving it unchanged.'
+            echo 'publish=false' >> "$GITHUB_OUTPUT"
+          else
+            echo 'publish=true' >> "$GITHUB_OUTPUT"
+          fi
+
+  ubuntu:
+    needs: prepare
+    if: needs.prepare.outputs.publish == 'true'
+    uses: ./.github/workflows/build-deb.yml
+    with:
+      version: ${{ needs.prepare.outputs.version }}
+
+  windows:
+    needs: prepare
+    if: needs.prepare.outputs.publish == 'true'
+    uses: ./.github/workflows/build.yml
+
+  publish:
+    needs: [prepare, ubuntu, windows]
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      RELEASE_TAG: ${{ needs.prepare.outputs.tag }}
+      RELEASE_VERSION: ${{ needs.prepare.outputs.version }}
+      RELEASE_TITLE: ${{ needs.prepare.outputs.title }}
+      PRERELEASE: ${{ needs.prepare.outputs.prerelease }}
+    steps:
+      - uses: actions/checkout@v7
+      - name: Download Ubuntu installer
+        uses: actions/download-artifact@v7
+        with:
+          name: FitGirl-FF-Link-Extractor-Ubuntu-amd64
+          path: release-assets
+      - name: Download Windows installer
+        uses: actions/download-artifact@v7
+        with:
+          name: FitGirl_FF_Link_Extractor-Windows
+          path: release-assets
+      - name: Name installers and calculate checksums
+        run: |
+          mv release-assets/FitGirl_FF_Link_Extractor.exe \
+            "release-assets/FitGirl_FF_Link_Extractor_${RELEASE_VERSION}_windows_x64.exe"
+          cd release-assets
+          sha256sum -- *.deb *.exe > SHA256SUMS
+      - name: Upload assets and publish release
+        run: |
+          if state="$(gh release view "$RELEASE_TAG" --json isDraft --jq .isDraft 2>/dev/null)"; then
+            if [[ "$state" != true ]]; then
+              echo 'Refusing to overwrite an already published release.' >&2
+              exit 1
+            fi
+          else
+            notes=(--generate-notes)
+            if [[ -f "releases/$RELEASE_TAG.md" ]]; then
+              notes=(--notes-file "releases/$RELEASE_TAG.md")
+            fi
+            gh release create "$RELEASE_TAG" --verify-tag --draft \
+              --title "$RELEASE_TITLE" "${notes[@]}"
+          fi
+          gh release upload "$RELEASE_TAG" release-assets/* --clobber
+          latest=true
+          if [[ "$PRERELEASE" == true ]]; then latest=false; fi
+          gh release edit "$RELEASE_TAG" --draft=false \
+            --prerelease="$PRERELEASE" --latest="$latest"

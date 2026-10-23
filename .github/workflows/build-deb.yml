@@ -3,13 +3,18 @@ name: Build Ubuntu DEB
 on:
   push:
     branches: [main]
-    tags: ['v*']
   pull_request:
   workflow_dispatch:
     inputs:
       version:
-        description: 'Debian package version (for example 0.4.0)'
+        description: 'Package version (for example 0.4.0-alpha.1)'
         required: false
+        type: string
+  workflow_call:
+    inputs:
+      version:
+        description: 'Release version to package'
+        required: true
         type: string
 
 permissions:
