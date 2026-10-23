@@ -1,0 +1,11 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=FitGirl Link Extractor
+Comment=Select files and extract direct download links from FitGirl pages
+Exec=fitgirl-ff-link-extractor
+Icon=fitgirl-ff-link-extractor
+Terminal=false
+Categories=Network;
+Keywords=FitGirl;download;links;extractor;
+StartupWMClass=FitgirlFFExtractor

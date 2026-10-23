@@ -1,0 +1,78 @@
+name: Build Ubuntu DEB
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Debian package version (for example 0.4.0)'
+        required: false
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  build-deb:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 20
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v7
+
+      - name: Set up Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: '3.11'
+          cache: pip
+          cache-dependency-path: |
+            requirements.txt
+            requirements-build.txt
+
+      - name: Install build and desktop dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y python3-tk tk8.6 xvfb desktop-file-utils libnss3 libgbm1 libasound2
+          python -m pip install -r requirements.txt -r requirements-build.txt
+
+      - name: Choose package version
+        env:
+          REQUESTED_VERSION: ${{ inputs.version }}
+        run: |
+          if [[ -n "$REQUESTED_VERSION" ]]; then
+            version="$REQUESTED_VERSION"
+          elif [[ "$GITHUB_REF" == refs/tags/v* ]]; then
+            version="${GITHUB_REF_NAME#v}"
+          else
+            version="$(cat VERSION)+git${GITHUB_RUN_NUMBER}"
+          fi
+          dpkg --validate-version "$version"
+          printf 'PACKAGE_VERSION=%s\n' "$version" >> "$GITHUB_ENV"
+
+      - name: Test desktop behavior
+        run: xvfb-run -a python -m unittest discover -s tests -v
+
+      - name: Build Debian package
+        env:
+          FF_BUILD_PYTHON: python
+        run: ./scripts/build_deb.sh "$PACKAGE_VERSION"
+
+      - name: Verify package and open the bundled GUI
+        run: |
+          desktop-file-validate packaging/fitgirl-ff-link-extractor.desktop
+          dpkg-deb --info dist/*.deb
+          dpkg-deb --extract dist/*.deb "$RUNNER_TEMP/deb-smoke-test"
+          timeout 30s xvfb-run -a "$RUNNER_TEMP/deb-smoke-test/opt/fitgirl-ff-link-extractor/fitgirl-ff-link-extractor" --smoke-test
+          google-chrome --version
+          timeout --kill-after=10s 180s xvfb-run -a "$RUNNER_TEMP/deb-smoke-test/opt/fitgirl-ff-link-extractor/fitgirl-ff-link-extractor" --browser-smoke-test
+
+      - name: Upload Ubuntu installer
+        uses: actions/upload-artifact@v7
+        with:
+          name: FitGirl-FF-Link-Extractor-Ubuntu-amd64
+          path: dist/*.deb
+          if-no-files-found: error
+          retention-days: 30
