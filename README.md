@@ -63,7 +63,7 @@ in the same directory.
 
 ## Releases
 
-The current version is **0.4.0 Alpha 1** (`v0.4.0-alpha.1`), marked as a GitHub
+The current named release is **0.4.0 Alpha 1** (`v0.4.0-alpha.1`), marked as a GitHub
 prerelease. Installers are published on the
 [Releases page](https://github.com/justinecabel/fitgirl-ff-link-extractor/releases).
 The alpha is intended for testing and feedback.
@@ -80,16 +80,34 @@ matching tag. You can also run **Actions → Publish release → Run workflow**,
 or push an explicit matching `v*` tag. Release tags must match `VERSION`.
 Published tags and assets are left unchanged when a workflow is rerun.
 
+### Automatic development versions
+
+Every push to `main` starts **Publish development build**. The workflow takes
+`0.4.0` from `VERSION` and allocates `0.4.0-dev.1`, `0.4.0-dev.2`, and so on.
+After both installer builds and the Linux checks pass, it publishes a GitHub
+prerelease with the `.deb`, `.exe`, and checksums. A push containing several
+commits produces one build for its tip commit.
+
+The development counter is GitHub's workflow run number. Retrying a run reuses
+its version; starting a new manual run advances it. Different build versions
+can run concurrently, so newer pushes do not cancel earlier development builds.
+The counter continues when the base version changes.
+
+`VERSION` remains the source for named alpha, beta, and stable releases. The
+workflow creates no version-bump commits, and development releases do not become
+the latest stable release. Update `VERSION` deliberately when starting a new
+base version or publishing a named release.
+
 Debian packages use `0.4.0~alpha.1` internally so an eventual stable `0.4.0`
 upgrades correctly. The build script converts supported `-alpha`, `-beta`, and
-`-rc` version suffixes automatically.
+`-rc`, and `-dev` version suffixes automatically.
 Download filenames use `-alpha.1`; the package metadata keeps `~alpha.1`.
 
 ## Ubuntu installer (.deb)
 
 The **Build Ubuntu DEB** GitHub Actions workflow builds an `amd64` / x86-64
-installer on Ubuntu 22.04. It runs on pushes to `main`, pull requests, as part
-of a release, and manually through **Actions → Build Ubuntu DEB → Run workflow**.
+installer on Ubuntu 22.04. It runs for pull requests, as part of named and
+development releases, and manually through **Actions → Build Ubuntu DEB → Run workflow**.
 
 After a successful run, download and unzip the
 **FitGirl-FF-Link-Extractor-Ubuntu-amd64** artifact, then install its `.deb`:

@@ -6,12 +6,23 @@ on:
     paths: [VERSION]
     tags: ['v*']
   workflow_dispatch:
+  workflow_call:
+    inputs:
+      version:
+        description: 'Version to publish'
+        required: true
+        type: string
+      development:
+        description: 'Validate an automatic development build against the VERSION base'
+        required: false
+        default: false
+        type: boolean
 
 permissions:
   contents: read
 
 concurrency:
-  group: publish-release
+  group: publish-${{ inputs.version || github.ref_name }}
   cancel-in-progress: false
 
 jobs:
@@ -30,13 +41,22 @@ jobs:
       - uses: actions/checkout@v7
       - name: Validate version and release tag
         id: info
+        env:
+          REQUESTED_VERSION: ${{ inputs.version }}
+          DEVELOPMENT: ${{ inputs.development }}
         run: |
-          if [[ "$GITHUB_REF" == refs/tags/* ]]; then
+          if [[ -n "$REQUESTED_VERSION" ]]; then
+            tag="v$REQUESTED_VERSION"
+          elif [[ "$GITHUB_REF" == refs/tags/* ]]; then
             tag="$GITHUB_REF_NAME"
           else
             tag="v$(cat VERSION)"
           fi
-          python3 scripts/release_info.py "$tag" --check-version VERSION >> "$GITHUB_OUTPUT"
+          if [[ "$DEVELOPMENT" == true ]]; then
+            python3 scripts/release_info.py "$tag" --check-development-base VERSION >> "$GITHUB_OUTPUT"
+          else
+            python3 scripts/release_info.py "$tag" --check-version VERSION >> "$GITHUB_OUTPUT"
+          fi
       - name: Ensure tag points to this commit
         id: tag
         env:
@@ -117,6 +137,10 @@ jobs:
             fi
           else
             notes=(--generate-notes)
+            if [[ "$RELEASE_VERSION" == *-dev.* ]]; then
+              printf 'Automatic development build for commit `%s`.\n\nThis prerelease is intended for testing.\n' "$GITHUB_SHA" > "$RUNNER_TEMP/development-notes.md"
+              notes+=(--notes-file "$RUNNER_TEMP/development-notes.md")
+            fi
             if [[ -f "releases/$RELEASE_TAG.md" ]]; then
               notes=(--notes-file "releases/$RELEASE_TAG.md")
             fi
