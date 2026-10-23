@@ -22,6 +22,7 @@ jobs:
     outputs:
       tag: ${{ steps.info.outputs.tag }}
       version: ${{ steps.info.outputs.version }}
+      deb_asset: ${{ steps.info.outputs.deb_asset }}
       title: ${{ steps.info.outputs.title }}
       prerelease: ${{ steps.info.outputs.prerelease }}
       publish: ${{ steps.tag.outputs.publish }}
@@ -80,6 +81,7 @@ jobs:
       GH_TOKEN: ${{ github.token }}
       RELEASE_TAG: ${{ needs.prepare.outputs.tag }}
       RELEASE_VERSION: ${{ needs.prepare.outputs.version }}
+      DEB_ASSET: ${{ needs.prepare.outputs.deb_asset }}
       RELEASE_TITLE: ${{ needs.prepare.outputs.title }}
       PRERELEASE: ${{ needs.prepare.outputs.prerelease }}
     steps:
@@ -96,6 +98,12 @@ jobs:
           path: release-assets
       - name: Name installers and calculate checksums
         run: |
+          shopt -s nullglob
+          debs=(release-assets/*.deb)
+          [[ "${#debs[@]}" == 1 ]]
+          if [[ "${debs[0]}" != "release-assets/$DEB_ASSET" ]]; then
+            mv "${debs[0]}" "release-assets/$DEB_ASSET"
+          fi
           mv release-assets/FitGirl_FF_Link_Extractor.exe \
             "release-assets/FitGirl_FF_Link_Extractor_${RELEASE_VERSION}_windows_x64.exe"
           cd release-assets

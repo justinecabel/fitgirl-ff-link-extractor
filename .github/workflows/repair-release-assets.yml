@@ -1,0 +1,70 @@
+name: Repair prerelease filenames
+
+on:
+  push:
+    branches: [main]
+    paths: [.github/workflows/repair-release-assets.yml]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Existing prerelease tag (empty uses VERSION)'
+        required: false
+        type: string
+
+permissions:
+  contents: write
+
+concurrency:
+  group: publish-release
+  cancel-in-progress: false
+
+jobs:
+  repair:
+    runs-on: ubuntu-22.04
+    env:
+      GH_TOKEN: ${{ github.token }}
+      REQUESTED_TAG: ${{ inputs.tag }}
+    steps:
+      - uses: actions/checkout@v7
+      - name: Validate the existing mutable prerelease
+        id: info
+        run: |
+          tag="${REQUESTED_TAG:-v$(cat VERSION)}"
+          python3 scripts/release_info.py "$tag" >> "$GITHUB_OUTPUT"
+          gh api "repos/$GITHUB_REPOSITORY/releases/tags/$tag" > "$RUNNER_TEMP/release-before.json"
+          jq -e '.prerelease == true and .draft == false and (.immutable != true)' "$RUNNER_TEMP/release-before.json"
+      - name: Correct the Debian download filename
+        env:
+          DEB_ASSET: ${{ steps.info.outputs.deb_asset }}
+        run: |
+          deb_id="$(jq -r '[.assets[] | select(.name | endswith(".deb"))] | if length == 1 then .[0].id else error("Expected one Debian asset") end' "$RUNNER_TEMP/release-before.json")"
+          gh api --method PATCH "repos/$GITHUB_REPOSITORY/releases/assets/$deb_id" -f name="$DEB_ASSET" --silent
+      - name: Verify installer contents and refresh checksums
+        env:
+          RELEASE_TAG: ${{ steps.info.outputs.tag }}
+        run: |
+          gh release download "$RELEASE_TAG" --pattern '*.deb' --pattern '*.exe' --dir release-assets
+          gh api "repos/$GITHUB_REPOSITORY/releases/tags/$RELEASE_TAG" > "$RUNNER_TEMP/release-after.json"
+          python3 - <<'PY'
+          import hashlib, json, os
+          from pathlib import Path
+          before = json.loads((Path(os.environ['RUNNER_TEMP']) / 'release-before.json').read_text())
+          after = json.loads((Path(os.environ['RUNNER_TEMP']) / 'release-after.json').read_text())
+          original = {asset['id']: asset for asset in before['assets']}
+          files = list(Path('release-assets').iterdir())
+          assert len(files) == 2
+          for path in files:
+              asset = next(asset for asset in after['assets'] if asset['name'] == path.name)
+              digest = 'sha256:' + hashlib.sha256(path.read_bytes()).hexdigest()
+              assert original[asset['id']]['digest'] == digest, path.name
+          PY
+          cd release-assets
+          sha256sum -- *.deb *.exe > SHA256SUMS
+          gh release upload "$RELEASE_TAG" SHA256SUMS --clobber
+      - name: Update install instructions
+        env:
+          RELEASE_TAG: ${{ steps.info.outputs.tag }}
+        run: |
+          if [[ -f "releases/$RELEASE_TAG.md" ]]; then
+            gh release edit "$RELEASE_TAG" --notes-file "releases/$RELEASE_TAG.md" --prerelease --latest=false
+          fi

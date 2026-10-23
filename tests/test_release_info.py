@@ -12,6 +12,7 @@ class ReleaseTests(unittest.TestCase):
         info = release_info('v0.4.0-alpha.1')
         self.assertEqual(info['version'], '0.4.0-alpha.1')
         self.assertEqual(info['package_version'], '0.4.0~alpha.1')
+        self.assertEqual(info['deb_asset'], 'fitgirl-ff-link-extractor_0.4.0-alpha.1_amd64.deb')
         self.assertEqual(info['prerelease'], 'true')
         self.assertEqual(info['title'], 'v0.4.0 Alpha 1')
 

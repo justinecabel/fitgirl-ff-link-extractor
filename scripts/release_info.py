@@ -21,6 +21,7 @@ def release_info(tag):
     if stage:
         title += f" {stage.upper() if stage == 'rc' else stage.title()} {match['number']}"
     return {'tag': tag, 'version': version, 'package_version': debian_version(version),
+            'deb_asset': f'fitgirl-ff-link-extractor_{version}_amd64.deb',
             'prerelease': str(bool(stage)).lower(), 'title': title}
 
 

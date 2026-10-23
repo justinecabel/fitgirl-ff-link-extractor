@@ -83,6 +83,7 @@ Published tags and assets are left unchanged when a workflow is rerun.
 Debian packages use `0.4.0~alpha.1` internally so an eventual stable `0.4.0`
 upgrades correctly. The build script converts supported `-alpha`, `-beta`, and
 `-rc` version suffixes automatically.
+Download filenames use `-alpha.1`; the package metadata keeps `~alpha.1`.
 
 ## Ubuntu installer (.deb)
 
